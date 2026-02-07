@@ -1,0 +1,5 @@
+sku_id,annual_demand,avg_demand,std_dev_demand,avg_lead_time,order_cost,holding_cost
+SKU001,12000,1000,150,5,50.0,2.5
+SKU002,5000,416,80,7,45.0,1.8
+SKU003,24000,2000,300,3,75.0,5.0
+SKU004,1500,125,40,14,30.0,0.5
