@@ -7,6 +7,28 @@
 
 A **production-grade supply chain optimization platform** for managing inventory levels, reducing carrying costs, and preventing stockouts. Built with Python, this repository implements advanced mathematical models (EOQ, Safety Stock, Reorder Point) for data-driven inventory management.
 
+## 💰 Business Value
+
+Effective inventory management is the backbone of retail and manufacturing profitability. This tool directly impacts the bottom line by:
+
+- **Reducing Carrying Costs**: Optimizing safety stock levels to free up working capital.
+- **Preventing Stockouts**: Maintaining optimal service levels (95%+) to avoid lost sales.
+- **Automating Reordering**: Removing human error from the replenishment process.
+
+## 🔄 Process Flow
+
+The system ingests raw sales data, forecasts future demand, and calculates optimal inventory parameters.
+
+```mermaid
+graph LR
+    A[Sales History] -->|Ingest| B(Forecasting Engine)
+    B -->|Predict| C{Optimizer}
+    D[Cost Parameters] --> C
+    C -->|Calculate| E[EOQ & Safety Stock]
+    E -->|Generate| F[Restock Recommendations]
+    F -->|API Response| G[Dashboard/ERP]
+```
+
 ## 🚀 Features
 
 - **EOQ Modeling**: Implementation of the Economic Order Quantity model to minimize total inventory costs.
@@ -18,7 +40,7 @@ A **production-grade supply chain optimization platform** for managing inventory
 
 ## 📁 Project Structure
 
-```
+```text
 business-inventory-optimization-tool/
 ├── src/
 │   ├── optimization/ # Optimization algorithms
@@ -42,6 +64,34 @@ pip install -r requirements.txt
 
 # Run API
 uvicorn src.main:app --host 0.0.0.0 --port 8000
+```
+
+### API Usage Example
+
+Get optimization parameters for a specific SKU:
+
+```bash
+curl -X POST "http://localhost:8000/optimize" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "annual_demand": 12000,
+           "order_cost": 50,
+           "holding_cost": 2.5,
+           "lead_time": 5,
+           "demand_std_dev": 15
+         }'
+```
+
+**Response:**
+
+```json
+{
+  "sku_id": "SKU-123",
+  "eoq": 692,
+  "safety_stock": 42,
+  "reorder_point": 206,
+  "recommendation": "Reorder 692 units when stock hits 206"
+}
 ```
 
 ## 📄 License
