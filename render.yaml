@@ -1,0 +1,14 @@
+# Render deployment (free tier). Set API_KEY in the Render dashboard — never commit it.
+services:
+  - type: web
+    name: inventory-optimizer
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: API_KEY
+        sync: false        # set manually in the Render dashboard
+      - key: LOG_LEVEL
+        value: info

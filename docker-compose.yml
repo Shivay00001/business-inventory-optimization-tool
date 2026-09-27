@@ -4,6 +4,9 @@ services:
   inventory-optimizer:
     build: .
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:8000"
+    # Runtime config comes from .env (copied from .env.example). Required: API_KEY.
+    env_file:
+      - .env
     volumes:
       - ./data:/app/data

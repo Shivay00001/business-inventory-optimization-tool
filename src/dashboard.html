@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Optimizer — Dashboard</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --txt:#f1f5f9; --acc:#38bdf8; --ok:#4ade80; --err:#f87171; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--txt); padding:24px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; }
+  .sub { color:#94a3b8; margin-bottom:20px; }
+  .grid { display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); max-width:1200px; }
+  .card { background:var(--card); border-radius:12px; padding:20px; }
+  .card h2 { font-size:1.1rem; margin:0 0 12px; color:var(--acc); }
+  label { display:block; font-size:.8rem; color:#94a3b8; margin:10px 0 4px; }
+  input, textarea, button { width:100%; padding:10px; border-radius:8px; border:1px solid #334155; background:#0f172a; color:var(--txt); font-size:.95rem; }
+  textarea { font-family:ui-monospace,monospace; min-height:120px; }
+  button { background:var(--acc); color:#06283b; font-weight:700; border:none; cursor:pointer; margin-top:12px; }
+  button:hover { filter:brightness(1.1); }
+  button.ghost { background:transparent; border:1px solid var(--acc); color:var(--acc); }
+  table { width:100%; border-collapse:collapse; margin-top:16px; font-size:.9rem; }
+  th, td { padding:10px; text-align:left; border-bottom:1px solid #334155; }
+  th { color:var(--acc); font-weight:600; }
+  tr:hover td { background:#243349; }
+  #msg { margin-top:12px; min-height:1.2em; }
+  .ok { color:var(--ok); } .err { color:var(--err); }
+  .hint { font-size:.78rem; color:#94a3b8; margin-top:6px; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+</style>
+</head>
+<body>
+<h1>📦 Inventory Optimizer</h1>
+<div class="sub">EOQ · safety stock · reorder point — for kirana chains, pharmacies &amp; spare-part shops</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>🔑 API key</h2>
+    <input id="apikey" type="password" placeholder="Your X-API-Key (set via API_KEY env var)">
+    <div class="hint">Same key your admin gave you. Never share it publicly.</div>
+  </div>
+
+  <div class="card">
+    <h2>➕ Optimize one product (SKU)</h2>
+    <div class="row">
+      <div><label>SKU id</label><input id="sku_id" value="RICE-5KG"></div>
+      <div><label>Annual demand (units)</label><input id="annual_demand" type="number" value="12000"></div>
+      <div><label>Avg daily demand</label><input id="avg_demand" type="number" value="33"></div>
+      <div><label>Std dev of daily demand</label><input id="std_dev_demand" type="number" value="30"></div>
+      <div><label>Avg lead time (days)</label><input id="avg_lead_time" type="number" value="7"></div>
+      <div><label>Order cost (₹)</label><input id="order_cost" type="number" value="100"></div>
+      <div><label>Holding cost/unit/year (₹)</label><input id="holding_cost" type="number" value="5"></div>
+      <div><label>Service level (0–1)</label><input id="service_level" type="number" step="0.01" value="0.95"></div>
+    </div>
+    <button onclick="optimizeOne()">Calculate</button>
+  </div>
+
+  <div class="card">
+    <h2>📄 Optimize many products</h2>
+    <label>Paste rows (no header): sku_id, annual_demand, avg_demand, std_dev_demand, avg_lead_time, order_cost, holding_cost, service_level</label>
+    <textarea id="batch" placeholder="RICE-5KG,12000,33,30,7,100,5,0.95&#10;OIL-1L,8000,22,12,10,80,4,0.95"></textarea>
+    <button onclick="optimizeBatch()">Calculate all</button>
+    <button class="ghost" onclick="downloadCsv()">⬇ Download CSV report</button>
+    <div class="hint">The CSV opens directly in Excel / Google Sheets — your one-time ₹10–20k deliverable.</div>
+  </div>
+</div>
+
+<div class="card" style="max-width:1200px; margin-top:16px;">
+  <h2>📊 Results</h2>
+  <div id="msg"></div>
+  <table id="resultTable" style="display:none;">
+    <thead><tr><th>SKU</th><th>EOQ (order qty)</th><th>Safety stock</th><th>Reorder point</th><th>Orders/year</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<script>
+const msg = (t, cls) => { const el = document.getElementById('msg'); el.textContent = t; el.className = cls || ''; };
+const key = () => document.getElementById('apikey').value.trim();
+
+function skuFromForm() {
+  const num = id => { const v = parseFloat(document.getElementById(id).value); if (!isFinite(v)) throw new Error('Invalid number: ' + id); return v; };
+  return {
+    sku_id: document.getElementById('sku_id').value.trim(),
+    annual_demand: num('annual_demand'),
+    avg_demand: num('avg_demand'),
+    std_dev_demand: num('std_dev_demand'),
+    avg_lead_time: num('avg_lead_time'),
+    order_cost: num('order_cost'),
+    holding_cost: num('holding_cost'),
+    service_level: num('service_level'),
+  };
+}
+
+function parseBatch() {
+  const lines = document.getElementById('batch').value.trim().split('\n').filter(l => l.trim());
+  if (!lines.length) throw new Error('Paste at least one row.');
+  return lines.map((l, i) => {
+    const p = l.split(',').map(s => s.trim());
+    if (p.length < 7) throw new Error('Row ' + (i + 1) + ': need at least 7 columns.');
+    return { sku_id: p[0], annual_demand: +p[1], avg_demand: +p[2], std_dev_demand: +p[3],
+             avg_lead_time: +p[4], order_cost: +p[5], holding_cost: +p[6],
+             service_level: p[7] ? +p[7] : 0.95 };
+  });
+}
+
+function showResults(rows) {
+  const tb = document.getElementById('tbody'); tb.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.sku_id}</td><td>${r.eoq}</td><td>${r.safety_stock}</td><td>${r.reorder_point}</td><td>${r.orders_per_year}</td>`;
+    tb.appendChild(tr);
+  });
+  document.getElementById('resultTable').style.display = '';
+  msg(rows.length + ' product(s) optimized.', 'ok');
+}
+
+async function postJson(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': key() }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.message || data.error || ('HTTP ' + r.status));
+  return data;
+}
+
+async function optimizeOne() {
+  try { msg('Calculating…'); const r = await postJson('/optimize', skuFromForm()); showResults([r]); }
+  catch (e) { msg('❌ ' + e.message, 'err'); }
+}
+
+async function optimizeBatch() {
+  try { msg('Calculating…'); const d = await postJson('/optimize/batch', { skus: parseBatch() }); showResults(d.results); }
+  catch (e) { msg('❌ ' + e.message, 'err'); }
+}
+
+async function downloadCsv() {
+  try {
+    msg('Preparing CSV…');
+    const r = await fetch('/export/csv', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': key() }, body: JSON.stringify({ skus: parseBatch() }) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.message || d.error || ('HTTP ' + r.status)); }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'inventory-optimization.csv'; a.click();
+    URL.revokeObjectURL(a.href);
+    msg('CSV downloaded — open it in Excel or Google Sheets.', 'ok');
+  } catch (e) { msg('❌ ' + e.message, 'err'); }
+}
+</script>
+</body>
+</html>
