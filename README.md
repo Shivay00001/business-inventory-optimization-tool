@@ -98,3 +98,7 @@ python3 scripts/smoke_test.py       # live-endpoint smoke test (needs server up)
 - `analytics.py` / `forecast.py` under `src/optimization/` are unexposed
   library modules (ABC analysis, demand forecasting) — available for a
   follow-up paid add-on (e.g. a `/forecast` endpoint), not wired into routes.
+
+## Built by VisionQuantech
+
+Part of the [VisionQuantech](https://visionquantech.com/) AI automation studio. See [AI agents for business](https://visionquantech.com/ai-agents-for-business) and the guide to [AI phone answering for dental clinics](https://visionquantech.com/blog/ai-phone-answering-service-for-dental-clinics).
